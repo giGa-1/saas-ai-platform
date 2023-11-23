@@ -1,5 +1,5 @@
 "use client"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Search } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, RotateCcw, RotateCw, Search } from "lucide-react";
 import {Document, Page, pdfjs} from  "react-pdf";
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -12,7 +12,9 @@ import {useForm} from 'react-hook-form'
 import { z } from "zod";
 import {zodResolver} from '@hookform/resolvers/zod';
 import { cn } from "@/lib/utils";
+import SimpleBar from 'simplebar-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./UI/dropdown-menu";
+import PdfFullScreen from "./PdfFullScreen";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
@@ -20,7 +22,7 @@ interface PdfRendererProps {
     url: string
 }
 
-const LoadingPDF = () => (
+export const LoadingPDF = () => (
     <div className="flex justify-center">
         <Loader2 className="my-24 w-6 h-6 animate-spin"/>
     </div>
@@ -30,10 +32,13 @@ const PdfRenderer = ({url}: PdfRendererProps) => {
 
     const {toast} = useToast();
     const [isLoaded, setIsLoaded] = useState<boolean>(false);
-
+    const [renderedScale, setRenderedScale] = useState<null | number>(null);
     const [numPages, setNumPages] = useState<number>();
     const [currPage, setCurrPage] = useState<number>(1);
     const [scale, setScale] = useState<number>(1);
+    const [rotation, setRotation] = useState<number>(0)
+
+    const isLoading = renderedScale !== scale; 
 
 
     const CustomPageValidater = z.object({
@@ -69,7 +74,13 @@ const PdfRenderer = ({url}: PdfRendererProps) => {
     return <div className={"w-full bg-white rounded-md shadow flex flex-col items-center"}>
         <div className="h-14 w-full border-b border-zinc-200 flex items-center justify-between px-2">
             <div className="flex items-center gap-1.5">
-                <Button disabled={currPage <= 1} variant={'ghost'} onClick={()=>{setCurrPage(prev=>prev - 1 ? prev - 1: 1)}} aria-label="previous page">
+                <Button disabled={currPage <= 1} variant={'ghost'} onClick={()=>{
+                    setCurrPage(prev=>{ 
+                            let prevPage = prev - 1 ? prev - 1: 1;
+                            setValue('page', prevPage+'');
+                            return prevPage
+                        }); 
+                    }} aria-label="previous page">
                     <ChevronLeft className="h-4 w-4"/>
                 </Button>
                 <div className="flex items-center gap-1.5">
@@ -83,7 +94,13 @@ const PdfRenderer = ({url}: PdfRendererProps) => {
                         <span>{numPages ?? 'x'}</span>
                     </p>
                 </div>
-                <Button disabled={numPages === undefined || currPage === numPages} variant={'ghost'} onClick={()=>{setCurrPage(prev=>prev + 1 ? prev + 1: 1)}}  aria-label="previous page">
+                <Button disabled={numPages === undefined || currPage === numPages} variant={'ghost'} onClick={()=>{
+                    setCurrPage(prev=>{
+                            let nextPage = prev + 1 ? prev + 1: 1;
+                            setValue('page',nextPage+'');
+                            return nextPage;
+                        });
+                    }}  aria-label="previous page">
                     <ChevronRight className="h-4 w-4"/>
                 </Button>
             </div>
@@ -108,14 +125,26 @@ const PdfRenderer = ({url}: PdfRendererProps) => {
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+
+                <Button variant={'ghost'} onClick={()=>{setRotation((prev)=>prev+90)}} aria-label={'rotate 90 deg'}>
+                    <RotateCw className="h-4 w-4"/>
+                </Button>
+
+
+                <PdfFullScreen url={url}/>
             </div>
         </div>
         <div className="flex-1 w-full max-h-screen">
-            <div ref={ref} className="w-full">
-                <Document  loading={LoadingPDF} onLoadSuccess={({numPages})=>{setIsLoaded(true);setNumPages(numPages)}} onLoadError={()=>toast({title: 'Error Loading PDF', description:'Please try again later', variant:'destructive'})} file={url} className={'max-h-full w-full'}>
-                    <Page scale={scale} loading={LoadingPDF} pageNumber={currPage} width={ref.current ? ref.current.offsetWidth : 300}  />
-                </ Document>
-            </div>
+            <SimpleBar autoHide={false} className="max-h-[calc(100vh-10rem)]"> 
+                <div ref={ref} className="w-full">
+                    <Document  loading={LoadingPDF} onLoadSuccess={({numPages})=>{setIsLoaded(true);setNumPages(numPages)}} onLoadError={()=>toast({title: 'Error Loading PDF', description:'Please try again later', variant:'destructive'})} file={url} className={'max-h-full w-full'}>
+                        {isLoading && renderedScale ? (
+                            <Page key={"@"+renderedScale} rotate={rotation} scale={scale} loading={LoadingPDF} pageNumber={currPage} width={ref.current ? ref.current.offsetWidth : 300}  />
+                        ): null}
+                        <Page key={"@" + scale} onRenderSuccess={() => setRenderedScale(scale)} className={cn(isLoading ? 'hidden' : '')}  rotate={rotation} scale={scale} loading={LoadingPDF} pageNumber={currPage} width={ref.current ? ref.current.offsetWidth : 300}  />
+                    </ Document>
+                </div>
+            </SimpleBar>
         </div>
     </div>
 }
